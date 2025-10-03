@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 
 from vllm.attention.backends.abstract import AttentionBackend
+from vllm.distributed import get_dcp_group
 from vllm.config import VllmConfig
 from vllm.utils import cdiv
 from vllm.v1.attention.backends.mamba_attn import (
@@ -145,11 +146,17 @@ class Mamba2AttentionMetadataBuilder(
         assert self.chunk_size is not None, (
             "chunk_size needs to be set in the model config for Mamba2 models")
         assert isinstance(kv_cache_spec, MambaSpec)
-        if kv_cache_spec.cache_strategy == "all":
+        if kv_cache_spec.cache_strategy != "disabled":
+            try:
+                dcp_world_size = get_dcp_group().world_size
+            except AssertionError:
+                dcp_world_size = 1
+            effective_block = kv_cache_spec.block_size * dcp_world_size
+            max_cached_blocks = max(
+                1 + kv_cache_spec.num_speculative_blocks,
+                cdiv(vllm_config.model_config.max_model_len, effective_block))
             self.state_indices_tensor = torch.empty(
-                (self.decode_cudagraph_max_bs,
-                 cdiv(vllm_config.model_config.max_model_len,
-                      kv_cache_spec.block_size)),
+                (self.decode_cudagraph_max_bs, max_cached_blocks),
                 dtype=torch.int32,
                 device=device,
             )

@@ -95,7 +95,7 @@ class CacheConfig:
     models to ensure exact alignment with attention page size."""
     mamba_block_size: Optional[int] = None
     """Size of a contiguous cache block in number of tokens for mamba cache."""
-    mamba_cache_strategy: MambaCacheStrategy = "all"
+    mamba_cache_strategy: MambaCacheStrategy = "last"
     """Logic for mamba cache:
     * disabled - turn off prefix caching
     * all - keep states for all prefixes
